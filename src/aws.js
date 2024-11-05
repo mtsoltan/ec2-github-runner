@@ -1,5 +1,5 @@
-const { EC2Client, RunInstancesCommand, TerminateInstancesCommand, waitUntilInstanceRunning  } = require('@aws-sdk/client-ec2');
-
+const { EC2Client, RunInstancesCommand, TerminateInstancesCommand, waitUntilInstanceRunning, waitUntilInstanceStopped, StartInstancesCommand, StopInstancesCommand  } = require('@aws-sdk/client-ec2');
+const { SSMClient, SendCommandCommand } = require('@aws-sdk/client-ssm');
 const core = require('@actions/core');
 const config = require('./config');
 
@@ -61,6 +61,38 @@ async function startEc2Instance(label, githubRegistrationToken) {
   }
 }
 
+async function resumeEc2Instance(ec2InstanceId) {
+  const ec2 = new EC2Client();
+
+  try {
+    await ec2.send(new StartInstancesCommand({InstanceIds: [ec2InstanceId]})).promise();
+    core.info(`AWS EC2 instance ${ec2InstanceId} is started`);
+    return ec2InstanceId;
+ } catch (error) {
+   core.error('AWS EC2 instance starting error');
+   throw error;
+ }
+
+}
+
+async function stopEc2Instance() {
+  const ec2 = new EC2Client();
+
+ const params = {
+   InstanceIds: [config.input.ec2InstanceId],
+ };
+
+ try {
+   core.info(`AWS EC2 instance ${config.input.ec2InstanceId} stopping`);
+   await ec2.send(new StopInstancesCommand(params)).promise();
+   core.info(`AWS EC2 instance ${config.input.ec2InstanceId} is stopped`);
+   return;
+ } catch (error) {
+   core.error(`AWS EC2 instance ${config.input.ec2InstanceId} stop error`);
+   throw error;
+ }
+}
+
 async function terminateEc2Instance() {
   const ec2 = new EC2Client();
 
@@ -77,6 +109,53 @@ async function terminateEc2Instance() {
     throw error;
   }
 }
+
+async function waitForInstanceStopped(ec2InstanceId) {
+  const ec2 = new EC2Client();
+
+  try {
+    await waitUntilInstanceStopped(
+      {
+        client: ec2,
+        maxWaitTime: 300,
+      }, {
+      Filters: [
+        {
+          Name: 'instance-id',
+          Values: [
+            ec2InstanceId,
+          ],
+        },
+      ],
+    });
+  } catch (error) {
+    core.error(`AWS EC2 instance ${ec2InstanceId} stopped error`);
+    throw error;
+  }
+}
+
+async function startRunner(ec2InstanceId) {
+  const ssm = new SSMClient();
+
+  const commands = [
+    'cd ~/actions-runner/',
+    './run.sh',
+  ];
+
+  const params = {
+    DocumentName: 'AWS-RunShellScript',
+    Targets: [{'Key':'InstanceIds', 'Values':[ec2InstanceId]}],
+    Parameters: {'commands': [commands]},
+  }
+
+  try {
+    core.info('Sending command to start GitHub runner')
+    ssm.send(new SendCommandCommand(params));
+  } catch (error) {
+    core.error('Could not send command to instance');
+  }
+}
+
 
 async function waitForInstanceRunning(ec2InstanceId) {
   const ec2 = new EC2Client();
@@ -108,5 +187,9 @@ async function waitForInstanceRunning(ec2InstanceId) {
 module.exports = {
   startEc2Instance,
   terminateEc2Instance,
-  waitForInstanceRunning
+  waitForInstanceRunning,
+  resumeEc2Instance,
+  stopEc2Instance,
+  waitForInstanceStopped,
+  startRunner,
 };
