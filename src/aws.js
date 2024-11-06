@@ -15,8 +15,7 @@ tar xzf ./actions-runner-linux-\${RUNNER_ARCH}-2.313.0.tar.gz
   // If runner home directory is specified, we expect the actions-runner software (and dependencies)
   // to be pre-installed in the AMI, so we simply cd into that directory and then start the runner
   return `#!/bin/bash
-
-cat << 'EOF' > setup-runner.sh
+cat << 'EOF' > /setup-runner.sh
 ${cd}
 mkdir -p actions-runner && cd actions-runner
 echo "${config.input.preRunnerScript}" > pre-runner-script.sh
@@ -27,13 +26,13 @@ export RUNNER_ALLOW_RUNASROOT=1
 ./run.sh
 EOF
 
-chmod +x setup-runner.sh
+chmod +x /setup-runner.sh
 USER_1000=$(getent passwd "1000" | cut -d: -f1)
 if [ -z "$USER_1000" ]; then
   echo "No user with UID 1000 found. Running as root."
-  ./setup-runner.sh
+  /setup-runner.sh
 else
-  su - $USER_1000 -c "./setup-runner.sh"
+  su - $USER_1000 -c "/setup-runner.sh"
 fi
 `;
 }
