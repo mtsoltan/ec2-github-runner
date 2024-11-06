@@ -18,7 +18,7 @@ tar xzf ./actions-runner-linux-\${RUNNER_ARCH}-2.313.0.tar.gz
 
 cat << 'EOF' > setup-runner.sh
 ${cd}
-mkdir actions-runner && cd actions-runner
+mkdir -p actions-runner && cd actions-runner
 echo "${config.input.preRunnerScript}" > pre-runner-script.sh
 source pre-runner-script.sh
 ${download}
